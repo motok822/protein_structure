@@ -1,4 +1,5 @@
-#[derive(Debug, Clone, Copy)]
+use std::collections::HashMap;
+#[derive(PartialEq, Debug, Clone, Copy)]
 enum Amino {
     H = 1,
     P = 2,
@@ -8,14 +9,70 @@ enum Direction {
     L = 2,
     R = 3,
 }
+struct AminoAcid {
+    amino: Amino,
+    pos: (i32, i32),
+}
 struct Protein {
     size: i32,
-    aminos: Vec<Amino>,
+    aminos: Vec<AminoAcid>,
     direct: Vec<Direction>,
     predict: i32,
     point: i32,
 }
-static PROTEIN_DATA: [&str; 11] = [
+
+impl Protein {
+    fn calc_predict(&mut self) -> i32 {
+        let mut map: HashMap<(i32, i32), Amino> = HashMap::new();
+        map.insert((0, 0), self.aminos[0].amino);
+        map.insert((1, 0), self.aminos[1].amino);
+        let mut previous_direct = (1, 0);
+        let mut last_pos = (1, 0);
+        let mut result = 0;
+        for i in 0..self.direct.len() {
+            let (x, y) = match self.direct[i] {
+                Direction::S => (
+                    last_pos.0 + previous_direct.0,
+                    last_pos.1 + previous_direct.1,
+                ),
+                Direction::L => (
+                    last_pos.0 - previous_direct.1,
+                    last_pos.1 + previous_direct.0,
+                ),
+                Direction::R => (
+                    last_pos.0 + previous_direct.1,
+                    last_pos.1 - previous_direct.0,
+                ),
+            };
+            if map.contains_key(&(x, y)) {
+                return 0;
+            }
+            let now_amino = self.aminos[i + 2].amino;
+            let mut count = 0;
+            let dxdy = vec![(1, 0), (0, 1), (-1, 0), (0, -1)];
+            previous_direct = (x - last_pos.0, y - last_pos.1);
+            if (now_amino == Amino::H) {
+                for j in 0..4 {
+                    let (dx, dy) = dxdy[j];
+                    let (nx, ny) = (x + dx, y + dy);
+                    if (map.contains_key(&(nx, ny))
+                        && map[&(nx, ny)] == Amino::H
+                        && (-dx, -dy) != previous_direct)
+                    {
+                        count += 1;
+                    }
+                }
+            }
+            last_pos = (x, y);
+            map.insert((x, y), now_amino);
+            result += count;
+        }
+        result
+    }
+}
+
+static PROTEIN_DATA: [&str; 12] = [
+    "H4",
     "(HP)2PH2PHP2HPH2P2HPH",
     "H2(P2H)7H",
     "P2HP2(H2P4)3H2",
@@ -75,20 +132,52 @@ fn parse_amino_str(input: &str) -> Vec<Amino> {
     result
 }
 
-static SAMPLE_PROTEIN_POINTS: [i32; 11] = [9, 9, 8, 14, 23, 21, 36, 42, 53, 50, 48];
+static SAMPLE_PROTEIN_POINTS: [i32; 12] = [4, 9, 9, 8, 14, 23, 21, 36, 42, 53, 50, 48];
 fn main() {
     let mut sample_proteins = Vec::new();
     for i in 0..PROTEIN_DATA.len() {
         let amino_str = PROTEIN_DATA[i];
         let aminos = parse_amino_str(amino_str);
-        println!("{:?}", aminos);
-        println!("{}", aminos.len());
+        let mut amino_acids = Vec::new();
+        for j in 0..aminos.len() {
+            amino_acids.push(AminoAcid {
+                amino: aminos[j],
+                pos: (0, 0),
+            });
+        }
         sample_proteins.push(Protein {
             size: aminos.len() as i32,
-            aminos: aminos,
+            aminos: amino_acids,
             direct: Vec::new(),
             predict: 0,
             point: SAMPLE_PROTEIN_POINTS[i],
         });
     }
+    for i in 0..sample_proteins.len() {
+        sample_proteins[i].aminos[0].pos = (0, 0);
+        sample_proteins[i].aminos[1].pos = (1, 0);
+    }
+    sample_proteins[0].direct = vec![Direction::L, Direction::L];
+    println!("{}", sample_proteins[0].calc_predict()); //test
+    sample_proteins[1].direct = vec![
+        Direction::L,
+        Direction::S,
+        Direction::L,
+        Direction::L,
+        Direction::R,
+        Direction::R,
+        Direction::L,
+        Direction::R,
+        Direction::L,
+        Direction::L,
+        Direction::S,
+        Direction::L,
+        Direction::R,
+        Direction::R,
+        Direction::L,
+        Direction::L,
+        Direction::S,
+        Direction::L,
+    ];
+    println!("{}", sample_proteins[1].calc_predict()); // test
 }
