@@ -1,4 +1,10 @@
 use std::collections::HashMap;
+extern crate kiss3d;
+use kiss3d::light::Light;
+use kiss3d::nalgebra::{Point2, Point3, UnitQuaternion, Vector3};
+use kiss3d::text::Font;
+use kiss3d::window::{self, Window};
+
 #[derive(PartialEq, Debug, Clone, Copy)]
 enum Amino {
     H = 1,
@@ -22,6 +28,7 @@ struct Protein {
 }
 
 impl Protein {
+    fn plot_2d(&mut self) {}
     fn calc_predict(&mut self) -> i32 {
         let mut map: HashMap<(i32, i32), Amino> = HashMap::new();
         map.insert((0, 0), self.aminos[0].amino);
@@ -45,6 +52,7 @@ impl Protein {
                 ),
             };
             if map.contains_key(&(x, y)) {
+                self.predict = 0;
                 return 0;
             }
             let now_amino = self.aminos[i + 2].amino;
@@ -67,6 +75,7 @@ impl Protein {
             map.insert((x, y), now_amino);
             result += count;
         }
+        self.predict = result;
         result
     }
 }
@@ -180,4 +189,18 @@ fn main() {
         Direction::L,
     ];
     println!("{}", sample_proteins[1].calc_predict()); // test
+
+    let mut window = Window::new("Kiss3d: points");
+
+    window.set_background_color(0.9, 0.9, 0.9); // 薄いグレー
+    window.set_light(Light::StickToCamera); // 光源をカメラに固定
+    window.set_point_size(20.0); // 点のサイズを大きく設定
+
+    while window.render() {
+        // 点の位置をカメラの視野内に設定
+        let point = Point3::new(0.0, 0.0, -5.0); // カメラの正面 (z=-5.0)
+
+        // 赤い点を描画
+        window.draw_point(&point, &Point3::new(1.0, 0.0, 0.0)); // 赤色
+    }
 }
