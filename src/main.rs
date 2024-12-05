@@ -1,9 +1,5 @@
+use plotters::prelude::*;
 use std::collections::HashMap;
-extern crate kiss3d;
-use kiss3d::light::Light;
-use kiss3d::nalgebra::{Point2, Point3, UnitQuaternion, Vector3};
-use kiss3d::text::Font;
-use kiss3d::window::{self, Window};
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 enum Amino {
@@ -25,6 +21,12 @@ struct Protein {
     direct: Vec<Direction>,
     predict: i32,
     point: i32,
+}
+fn rotate_left((x, y, z): (f64, f64, f64)) -> (f64, f64, f64) {
+    (y, -x, z)
+}
+fn rotate_right((x, y, z): (f64, f64, f64)) -> (f64, f64, f64) {
+    (-y, x, z)
 }
 
 impl Protein {
@@ -77,6 +79,84 @@ impl Protein {
         }
         self.predict = result;
         result
+    }
+
+    fn animation(&mut self) {
+        let area = BitMapBackend::gif(
+            "./animated.gif", // アニメーションファイルの名前。この名前で保存される
+            (1200, 800),      //  グラフのサイズ（幅x高さ)
+            100,              //  1フレームの時間。単位は [ms]
+        )
+        .unwrap()
+        .into_drawing_area();
+
+        let mut data = Vec::new();
+        data.push((0.0, 0.0, 0.0, self.aminos[0].amino));
+        data.push((5.0, 0.0, 0.0, self.aminos[1].amino));
+        for i in 0..self.direct.len() {
+            let mut prev_direction = (
+                data[i + 1].0 - data[i].0,
+                data[i + 1].1 - data[i].1,
+                data[i + 1].2 - data[i].2,
+            );
+            let (x, y, z, a) = match self.direct[i] {
+                Direction::S => (
+                    data[i + 1].0 + prev_direction.0,
+                    data[i + 1].1 + prev_direction.1,
+                    data[i + 1].2 + prev_direction.2,
+                    self.aminos[i + 2].amino,
+                ),
+                Direction::L => (
+                    data[i + 1].0 + rotate_left(prev_direction).0,
+                    data[i + 1].1 + rotate_left(prev_direction).1,
+                    data[i + 1].2 + rotate_left(prev_direction).2,
+                    self.aminos[i + 2].amino,
+                ),
+                Direction::R => (
+                    data[i + 1].0 + rotate_right(prev_direction).0,
+                    data[i + 1].1 + rotate_right(prev_direction).1,
+                    data[i + 1].2 + rotate_right(prev_direction).2,
+                    self.aminos[i + 2].amino,
+                ),
+            };
+            data.push((x, y, z, a));
+        }
+
+        for _ in 0..=20 {
+            area.fill(&WHITE).unwrap();
+
+            let mut chart = ChartBuilder::on(&area)
+                .margin(20)
+                .caption("protein structure", ("sans-serif", 40))
+                .build_cartesian_3d(-20.0..20.0, -20.0..20.0, -20.0..20.0)
+                .unwrap();
+
+            chart.configure_axes().draw().unwrap();
+
+            for i in 0..data.len() {
+                data[i].0 += 1.0;
+            }
+
+            chart
+                .draw_series(data.iter().map(|&(x, y, z, a)| {
+                    if (a == Amino::H) {
+                        TriangleMarker::new((x, y, z), 5, &RED)
+                    } else {
+                        TriangleMarker::new((x, y, z), 5, &BLUE)
+                    }
+                }))
+                .unwrap();
+
+            chart
+                .draw_series(LineSeries::new(
+                    data.iter().map(|&(x, y, z, _)| (x, y, z)),
+                    &BLACK.mix(0.3),
+                ))
+                .unwrap();
+
+            // グラフを更新する
+            area.present().unwrap();
+        }
     }
 }
 
@@ -142,7 +222,7 @@ fn parse_amino_str(input: &str) -> Vec<Amino> {
 }
 
 static SAMPLE_PROTEIN_POINTS: [i32; 12] = [4, 9, 9, 8, 14, 23, 21, 36, 42, 53, 50, 48];
-fn main() {
+fn setup() -> Vec<Protein> {
     let mut sample_proteins = Vec::new();
     for i in 0..PROTEIN_DATA.len() {
         let amino_str = PROTEIN_DATA[i];
@@ -189,18 +269,9 @@ fn main() {
         Direction::L,
     ];
     println!("{}", sample_proteins[1].calc_predict()); // test
-
-    let mut window = Window::new("Kiss3d: points");
-
-    window.set_background_color(0.9, 0.9, 0.9); // 薄いグレー
-    window.set_light(Light::StickToCamera); // 光源をカメラに固定
-    window.set_point_size(20.0); // 点のサイズを大きく設定
-
-    while window.render() {
-        // 点の位置をカメラの視野内に設定
-        let point = Point3::new(0.0, 0.0, -5.0); // カメラの正面 (z=-5.0)
-
-        // 赤い点を描画
-        window.draw_point(&point, &Point3::new(1.0, 0.0, 0.0)); // 赤色
-    }
+    sample_proteins
+}
+fn main() {
+    let mut sample_proteins = setup();
+    sample_proteins[1].animation();
 }
