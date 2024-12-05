@@ -1,165 +1,87 @@
 use plotters::prelude::*;
+use rand::Rng;
 use std::collections::HashMap;
+mod anneal;
+mod lib;
+use anneal::Annealing;
+use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Heuristics, Protein};
+fn animation(protein: &mut Protein) {
+    let area = BitMapBackend::gif(
+        "./animated.gif", // アニメーションファイルの名前。この名前で保存される
+        (1200, 800),      //  グラフのサイズ（幅x高さ)
+        100,              //  1フレームの時間。単位は [ms]
+    )
+    .unwrap()
+    .into_drawing_area();
 
-#[derive(PartialEq, Debug, Clone, Copy)]
-enum Amino {
-    H = 1,
-    P = 2,
-}
-enum Direction {
-    S = 1,
-    L = 2,
-    R = 3,
-}
-struct AminoAcid {
-    amino: Amino,
-    pos: (i32, i32),
-}
-struct Protein {
-    size: i32,
-    aminos: Vec<AminoAcid>,
-    direct: Vec<Direction>,
-    predict: i32,
-    point: i32,
-}
-fn rotate_left((x, y, z): (f64, f64, f64)) -> (f64, f64, f64) {
-    (y, -x, z)
-}
-fn rotate_right((x, y, z): (f64, f64, f64)) -> (f64, f64, f64) {
-    (-y, x, z)
-}
+    let mut data = Vec::new();
+    data.push((0, 0, 0, protein.aminos[0].amino));
+    data.push((5, 0, 0, protein.aminos[1].amino));
+    for i in 0..protein.direct.len() {
+        let mut prev_direction = (
+            data[i + 1].0 - data[i].0,
+            data[i + 1].1 - data[i].1,
+            data[i + 1].2 - data[i].2,
+        );
+        let (x, y, z, a) = match protein.direct[i] {
+            Direction::S => (
+                data[i + 1].0 + prev_direction.0,
+                data[i + 1].1 + prev_direction.1,
+                data[i + 1].2 + prev_direction.2,
+                protein.aminos[i + 2].amino,
+            ),
+            Direction::L => (
+                data[i + 1].0 + rotate_left(prev_direction).0,
+                data[i + 1].1 + rotate_left(prev_direction).1,
+                data[i + 1].2 + rotate_left(prev_direction).2,
+                protein.aminos[i + 2].amino,
+            ),
+            Direction::R => (
+                data[i + 1].0 + rotate_right(prev_direction).0,
+                data[i + 1].1 + rotate_right(prev_direction).1,
+                data[i + 1].2 + rotate_right(prev_direction).2,
+                protein.aminos[i + 2].amino,
+            ),
+        };
+        data.push((x, y, z, a));
+    }
 
-impl Protein {
-    fn plot_2d(&mut self) {}
-    fn calc_predict(&mut self) -> i32 {
-        let mut map: HashMap<(i32, i32), Amino> = HashMap::new();
-        map.insert((0, 0), self.aminos[0].amino);
-        map.insert((1, 0), self.aminos[1].amino);
-        let mut previous_direct = (1, 0);
-        let mut last_pos = (1, 0);
-        let mut result = 0;
-        for i in 0..self.direct.len() {
-            let (x, y) = match self.direct[i] {
-                Direction::S => (
-                    last_pos.0 + previous_direct.0,
-                    last_pos.1 + previous_direct.1,
-                ),
-                Direction::L => (
-                    last_pos.0 - previous_direct.1,
-                    last_pos.1 + previous_direct.0,
-                ),
-                Direction::R => (
-                    last_pos.0 + previous_direct.1,
-                    last_pos.1 - previous_direct.0,
-                ),
-            };
-            if map.contains_key(&(x, y)) {
-                self.predict = 0;
-                return 0;
-            }
-            let now_amino = self.aminos[i + 2].amino;
-            let mut count = 0;
-            let dxdy = vec![(1, 0), (0, 1), (-1, 0), (0, -1)];
-            previous_direct = (x - last_pos.0, y - last_pos.1);
-            if (now_amino == Amino::H) {
-                for j in 0..4 {
-                    let (dx, dy) = dxdy[j];
-                    let (nx, ny) = (x + dx, y + dy);
-                    if (map.contains_key(&(nx, ny))
-                        && map[&(nx, ny)] == Amino::H
-                        && (-dx, -dy) != previous_direct)
-                    {
-                        count += 1;
-                    }
+    for _ in 0..=20 {
+        area.fill(&WHITE).unwrap();
+
+        let mut chart = ChartBuilder::on(&area)
+            .margin(20)
+            .caption("protein structure", ("sans-serif", 40))
+            .build_cartesian_3d(-20..20, -20..20, -20..20)
+            .unwrap();
+
+        chart.configure_axes().draw().unwrap();
+
+        for i in 0..data.len() {
+            data[i].0 += 1;
+        }
+
+        chart
+            .draw_series(data.iter().map(|&(x, y, z, a)| {
+                if (a == Amino::H) {
+                    TriangleMarker::new((x, y, z), 5, &RED)
+                } else {
+                    TriangleMarker::new((x, y, z), 5, &BLUE)
                 }
-            }
-            last_pos = (x, y);
-            map.insert((x, y), now_amino);
-            result += count;
-        }
-        self.predict = result;
-        result
-    }
+            }))
+            .unwrap();
 
-    fn animation(&mut self) {
-        let area = BitMapBackend::gif(
-            "./animated.gif", // アニメーションファイルの名前。この名前で保存される
-            (1200, 800),      //  グラフのサイズ（幅x高さ)
-            100,              //  1フレームの時間。単位は [ms]
-        )
-        .unwrap()
-        .into_drawing_area();
+        chart
+            .draw_series(LineSeries::new(
+                data.iter().map(|&(x, y, z, _)| (x, y, z)),
+                &BLACK.mix(0.3),
+            ))
+            .unwrap();
 
-        let mut data = Vec::new();
-        data.push((0.0, 0.0, 0.0, self.aminos[0].amino));
-        data.push((5.0, 0.0, 0.0, self.aminos[1].amino));
-        for i in 0..self.direct.len() {
-            let mut prev_direction = (
-                data[i + 1].0 - data[i].0,
-                data[i + 1].1 - data[i].1,
-                data[i + 1].2 - data[i].2,
-            );
-            let (x, y, z, a) = match self.direct[i] {
-                Direction::S => (
-                    data[i + 1].0 + prev_direction.0,
-                    data[i + 1].1 + prev_direction.1,
-                    data[i + 1].2 + prev_direction.2,
-                    self.aminos[i + 2].amino,
-                ),
-                Direction::L => (
-                    data[i + 1].0 + rotate_left(prev_direction).0,
-                    data[i + 1].1 + rotate_left(prev_direction).1,
-                    data[i + 1].2 + rotate_left(prev_direction).2,
-                    self.aminos[i + 2].amino,
-                ),
-                Direction::R => (
-                    data[i + 1].0 + rotate_right(prev_direction).0,
-                    data[i + 1].1 + rotate_right(prev_direction).1,
-                    data[i + 1].2 + rotate_right(prev_direction).2,
-                    self.aminos[i + 2].amino,
-                ),
-            };
-            data.push((x, y, z, a));
-        }
-
-        for _ in 0..=20 {
-            area.fill(&WHITE).unwrap();
-
-            let mut chart = ChartBuilder::on(&area)
-                .margin(20)
-                .caption("protein structure", ("sans-serif", 40))
-                .build_cartesian_3d(-20.0..20.0, -20.0..20.0, -20.0..20.0)
-                .unwrap();
-
-            chart.configure_axes().draw().unwrap();
-
-            for i in 0..data.len() {
-                data[i].0 += 1.0;
-            }
-
-            chart
-                .draw_series(data.iter().map(|&(x, y, z, a)| {
-                    if (a == Amino::H) {
-                        TriangleMarker::new((x, y, z), 5, &RED)
-                    } else {
-                        TriangleMarker::new((x, y, z), 5, &BLUE)
-                    }
-                }))
-                .unwrap();
-
-            chart
-                .draw_series(LineSeries::new(
-                    data.iter().map(|&(x, y, z, _)| (x, y, z)),
-                    &BLACK.mix(0.3),
-                ))
-                .unwrap();
-
-            // グラフを更新する
-            area.present().unwrap();
-        }
+        // グラフを更新する
+        area.present().unwrap();
     }
 }
-
 static PROTEIN_DATA: [&str; 12] = [
     "H4",
     "(HP)2PH2PHP2HPH2P2HPH",
@@ -273,5 +195,20 @@ fn setup() -> Vec<Protein> {
 }
 fn main() {
     let mut sample_proteins = setup();
-    sample_proteins[1].animation();
+    let mut protein = &mut sample_proteins[11];
+    let mut annealing = Annealing {
+        temperature: 0.6,
+        max_iter: 100000,
+        now_ans: Vec::new(),
+        now_score: 0,
+        max_distance: 0.0,
+        best_ans: Vec::new(),
+        best_score: 0,
+    };
+    annealing.first_step(&mut protein);
+    for i in 0..annealing.max_iter {
+        annealing.one_step(&mut protein);
+        println!("{}: {}", i, annealing.now_score);
+    }
+    println!("best score: {}", annealing.best_score);
 }
