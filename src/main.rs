@@ -2,86 +2,12 @@ use plotters::prelude::*;
 use rand::Rng;
 use std::collections::HashMap;
 mod anneal;
+mod beam;
 mod lib;
 use anneal::Annealing;
+use beam::Beam;
 use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Heuristics, Protein};
-fn animation(protein: &mut Protein) {
-    let area = BitMapBackend::gif(
-        "./animated.gif", // アニメーションファイルの名前。この名前で保存される
-        (1200, 800),      //  グラフのサイズ（幅x高さ)
-        100,              //  1フレームの時間。単位は [ms]
-    )
-    .unwrap()
-    .into_drawing_area();
 
-    let mut data = Vec::new();
-    data.push((0, 0, 0, protein.aminos[0].amino));
-    data.push((5, 0, 0, protein.aminos[1].amino));
-    for i in 0..protein.direct.len() {
-        let mut prev_direction = (
-            data[i + 1].0 - data[i].0,
-            data[i + 1].1 - data[i].1,
-            data[i + 1].2 - data[i].2,
-        );
-        let (x, y, z, a) = match protein.direct[i] {
-            Direction::S => (
-                data[i + 1].0 + prev_direction.0,
-                data[i + 1].1 + prev_direction.1,
-                data[i + 1].2 + prev_direction.2,
-                protein.aminos[i + 2].amino,
-            ),
-            Direction::L => (
-                data[i + 1].0 + rotate_left(prev_direction).0,
-                data[i + 1].1 + rotate_left(prev_direction).1,
-                data[i + 1].2 + rotate_left(prev_direction).2,
-                protein.aminos[i + 2].amino,
-            ),
-            Direction::R => (
-                data[i + 1].0 + rotate_right(prev_direction).0,
-                data[i + 1].1 + rotate_right(prev_direction).1,
-                data[i + 1].2 + rotate_right(prev_direction).2,
-                protein.aminos[i + 2].amino,
-            ),
-        };
-        data.push((x, y, z, a));
-    }
-
-    for _ in 0..=20 {
-        area.fill(&WHITE).unwrap();
-
-        let mut chart = ChartBuilder::on(&area)
-            .margin(20)
-            .caption("protein structure", ("sans-serif", 40))
-            .build_cartesian_3d(-20..20, -20..20, -20..20)
-            .unwrap();
-
-        chart.configure_axes().draw().unwrap();
-
-        for i in 0..data.len() {
-            data[i].0 += 1;
-        }
-
-        chart
-            .draw_series(data.iter().map(|&(x, y, z, a)| {
-                if (a == Amino::H) {
-                    TriangleMarker::new((x, y, z), 5, &RED)
-                } else {
-                    TriangleMarker::new((x, y, z), 5, &BLUE)
-                }
-            }))
-            .unwrap();
-
-        chart
-            .draw_series(LineSeries::new(
-                data.iter().map(|&(x, y, z, _)| (x, y, z)),
-                &BLACK.mix(0.3),
-            ))
-            .unwrap();
-
-        // グラフを更新する
-        area.present().unwrap();
-    }
-}
 static PROTEIN_DATA: [&str; 12] = [
     "H4",
     "(HP)2PH2PHP2HPH2P2HPH",
@@ -153,7 +79,7 @@ fn setup() -> Vec<Protein> {
         for j in 0..aminos.len() {
             amino_acids.push(AminoAcid {
                 amino: aminos[j],
-                pos: (0, 0),
+                pos: (0, 0, 0),
             });
         }
         sample_proteins.push(Protein {
@@ -165,8 +91,8 @@ fn setup() -> Vec<Protein> {
         });
     }
     for i in 0..sample_proteins.len() {
-        sample_proteins[i].aminos[0].pos = (0, 0);
-        sample_proteins[i].aminos[1].pos = (1, 0);
+        sample_proteins[i].aminos[0].pos = (0, 0, 0);
+        sample_proteins[i].aminos[1].pos = (1, 0, 0);
     }
     sample_proteins[0].direct = vec![Direction::L, Direction::L];
     println!("{}", sample_proteins[0].calc_predict()); //test
@@ -196,9 +122,10 @@ fn setup() -> Vec<Protein> {
 fn main() {
     let mut sample_proteins = setup();
     let mut protein = &mut sample_proteins[11];
+    //焼きなまし法
     let mut annealing = Annealing {
         temperature: 0.6,
-        max_iter: 100000,
+        max_iter: 10000,
         now_ans: Vec::new(),
         now_score: 0,
         max_distance: 0.0,
@@ -211,4 +138,21 @@ fn main() {
         println!("{}: {}", i, annealing.now_score);
     }
     println!("best score: {}", annealing.best_score);
+
+    //ビームサーチ
+    protein.direct = annealing.best_ans.clone();
+    let mut beam = Beam {
+        beam_width: 40,
+        nodes: vec![protein.clone()],
+        best_score: 0,
+        best_ans: protein.clone(),
+    };
+    // beam.first_step(protein);
+    for j in 0..5 {
+        for i in 0..protein.direct.len() {
+            beam.one_step(i);
+            println!("now best {}: {}", i, beam.best_score);
+        }
+    }
+    println!("best score: {}", beam.best_score);
 }

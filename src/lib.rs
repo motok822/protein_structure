@@ -10,10 +10,12 @@ pub enum Direction {
     L = 2,
     R = 3,
 }
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub struct AminoAcid {
     pub amino: Amino,
-    pub pos: (i32, i32),
+    pub pos: (i32, i32, i32),
 }
+#[derive(PartialEq, Debug, Clone)]
 pub struct Protein {
     pub size: i32,
     pub aminos: Vec<AminoAcid>,
@@ -36,6 +38,8 @@ impl Protein {
         let mut previous_direct = (1, 0, 0);
         let mut last_pos = (1, 0, 0);
         let mut result = 0;
+        self.aminos[0].pos = (0, 0, 0);
+        self.aminos[1].pos = (1, 0, 0);
         for i in 0..self.direct.len() {
             let (x, y, z) = match self.direct[i] {
                 Direction::S => (
@@ -76,6 +80,7 @@ impl Protein {
             }
             last_pos = (x, y, z);
             map.insert((x, y, z), now_amino);
+            self.aminos[i + 2].pos = (x, y, z);
             result += count;
         }
         self.predict = result;
