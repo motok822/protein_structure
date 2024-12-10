@@ -9,6 +9,8 @@ pub enum Direction {
     S = 1,
     L = 2,
     R = 3,
+    U = 4,
+    D = 5,
 }
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct AminoAcid {
@@ -29,8 +31,20 @@ pub fn rotate_left((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
 pub fn rotate_right((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
     (-y, x, z)
 }
+pub fn rotate_up((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
+    (z, y, -x)
+}
+pub fn rotate_down((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
+    (-z, y, x)
+}
 
 impl Protein {
+    pub fn get_value(&mut self) -> f32 {
+        let mut score = self.calc_predict();
+        let mut max_distance = self.calc_max_distance();
+        score as f32 - max_distance / 3.0
+    }
+
     pub fn calc_predict(&mut self) -> i32 {
         let mut map: HashMap<(i32, i32, i32), Amino> = HashMap::new();
         map.insert((0, 0, 0), self.aminos[0].amino);
@@ -40,6 +54,7 @@ impl Protein {
         let mut result = 0;
         self.aminos[0].pos = (0, 0, 0);
         self.aminos[1].pos = (1, 0, 0);
+        assert!(self.aminos.len() == self.direct.len() + 2);
         for i in 0..self.direct.len() {
             let (x, y, z) = match self.direct[i] {
                 Direction::S => (
@@ -56,6 +71,16 @@ impl Protein {
                     last_pos.0 + rotate_right(previous_direct).0,
                     last_pos.1 + rotate_right(previous_direct).1,
                     last_pos.2 + rotate_right(previous_direct).2,
+                ),
+                Direction::U => (
+                    last_pos.0 + rotate_up(previous_direct).0,
+                    last_pos.1 + rotate_up(previous_direct).1,
+                    last_pos.2 + rotate_up(previous_direct).2,
+                ),
+                Direction::D => (
+                    last_pos.0 + rotate_down(previous_direct).0,
+                    last_pos.1 + rotate_down(previous_direct).1,
+                    last_pos.2 + rotate_down(previous_direct).2,
                 ),
             };
             if map.contains_key(&(x, y, z)) {
@@ -110,6 +135,16 @@ impl Protein {
                     last_pos.1 + rotate_right(last_direct).1,
                     last_pos.2 + rotate_right(last_direct).2,
                 ),
+                Direction::U => (
+                    last_pos.0 + rotate_up(last_direct).0,
+                    last_pos.1 + rotate_up(last_direct).1,
+                    last_pos.2 + rotate_up(last_direct).2,
+                ),
+                Direction::D => (
+                    last_pos.0 + rotate_down(last_direct).0,
+                    last_pos.1 + rotate_down(last_direct).1,
+                    last_pos.2 + rotate_down(last_direct).2,
+                ),
             };
             all_pos.push((x, y, z));
             last_direct = (x - last_pos.0, y - last_pos.1, z - last_pos.2);
@@ -133,7 +168,6 @@ impl Protein {
 }
 
 pub trait Heuristics {
-    fn first_step(&mut self, protein: &mut Protein);
-    fn one_step(&mut self, protein: &mut Protein);
-    fn get_value(&self) -> f32;
+    fn first_step(&mut self);
+    fn one_step(&mut self);
 }

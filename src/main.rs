@@ -1,14 +1,42 @@
 use plotters::prelude::*;
 use rand::Rng;
 use std::collections::HashMap;
+// mod aco;
 mod anneal;
 mod beam;
 mod lib;
+// use aco::ACO;
 use anneal::Annealing;
 use beam::Beam;
 use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Heuristics, Protein};
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use std::hash::{Hash, Hasher};
 
-static PROTEIN_DATA: [&str; 12] = [
+#[derive(Debug, PartialEq, PartialOrd)]
+struct OrdF32(f32);
+
+impl Eq for OrdF32 {}
+
+impl Ord for OrdF32 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // NaNの扱いに注意しつつ、PartialOrdの結果を利用
+        self.partial_cmp(other).unwrap_or(Ordering::Equal)
+    }
+}
+
+#[derive(Debug, PartialEq, PartialOrd)]
+struct FloatKey(f32);
+
+impl Eq for FloatKey {}
+
+impl Hash for FloatKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // ビットパターンをハッシュ値に変換
+        self.0.to_bits().hash(state);
+    }
+}
+static PROTEIN_DATA: [&str; 22] = [
     "H4",
     "(HP)2PH2PHP2HPH2P2HPH",
     "H2(P2H)7H",
@@ -21,6 +49,16 @@ static PROTEIN_DATA: [&str; 12] = [
     "H4P4H12P6(H12P3)3HP2(H2P2)2HPH",
     "P3H2P2H4P2H3(PH2)2PH4P8H6P2H6P9HPH2PH11P2H3PH2PHP2HPH3P6H3",
     "P6HPH2P5H3PH5PH2P4H2P2H2PH5PH10PH2PH7p11H7P2HPH3P6HPH2",
+    "HPH2P2H4PH3P2H2P2HPH2PHPH2P2H2P3HP8H2",
+    "H4PH2PH5P2HP2H2P2HP6HP2HP3HP2H2P2H3PH",
+    "PHPH2PH6P2HPHP2HPH2(PH)2P3H(P2H2)2P2HPHP2HP",
+    "PHPH2P2HPH3P2H2PH2P3H5P2HPH2(PH)2P4HP2(HP)2",
+    "P2HP3HPH4P2H4PH2PH3P2(HP)2HP2HP6H2PH2PH",
+    "H3P3H2PH(PH2)3PHP7HPHP2HP3HP2H6PH",
+    "PHP4HPH3PHPH4PH2PH2P3HPHP3H3(P2H2)2P3H",
+    "PH2PH3PH4P2H3P6HPH2P2H2PHP3H2(PH)2PH2P3",
+    "(PH)2P4(HP)2HP2HPH6P2H3PHP2HPH2P2HPH3P4H",
+    "PH2P6H2P3H3PHP2HPH2(P2H)2P2H2P2H7P2H2",
 ];
 
 fn parse_amino_str(input: &str) -> Vec<Amino> {
@@ -69,7 +107,9 @@ fn parse_amino_str(input: &str) -> Vec<Amino> {
     result
 }
 
-static SAMPLE_PROTEIN_POINTS: [i32; 12] = [4, 9, 9, 8, 14, 23, 21, 36, 42, 53, 50, 48];
+static SAMPLE_PROTEIN_POINTS: [i32; 22] = [
+    4, 9, 9, 8, 14, 23, 21, 36, 42, 53, 50, 48, 32, 34, 34, 33, 32, 32, 32, 31, 34, 33,
+];
 fn setup() -> Vec<Protein> {
     let mut sample_proteins = Vec::new();
     for i in 0..PROTEIN_DATA.len() {
@@ -121,38 +161,108 @@ fn setup() -> Vec<Protein> {
 }
 fn main() {
     let mut sample_proteins = setup();
-    let mut protein = &mut sample_proteins[11];
+    let mut protein = &mut sample_proteins[15];
+
     //焼きなまし法
     let mut annealing = Annealing {
-        temperature: 0.6,
-        max_iter: 10000,
-        now_ans: Vec::new(),
+        temperature: 0.9,
+        max_iter: 1000000,
+        now_ans: protein.clone(),
         now_score: 0,
-        max_distance: 0.0,
-        best_ans: Vec::new(),
+        best_ans: protein.clone(),
         best_score: 0,
     };
-    annealing.first_step(&mut protein);
-    for i in 0..annealing.max_iter {
-        annealing.one_step(&mut protein);
-        println!("{}: {}", i, annealing.now_score);
-    }
-    println!("best score: {}", annealing.best_score);
-
     //ビームサーチ
-    protein.direct = annealing.best_ans.clone();
     let mut beam = Beam {
-        beam_width: 40,
+        beam_width: 200,
         nodes: vec![protein.clone()],
         best_score: 0,
         best_ans: protein.clone(),
     };
-    // beam.first_step(protein);
-    for j in 0..5 {
-        for i in 0..protein.direct.len() {
-            beam.one_step(i);
-            println!("now best {}: {}", i, beam.best_score);
+    // annealing.first_step();
+
+    // for _ in 0..annealing.max_iter {
+    //     annealing.one_step();
+    //     println!("{}", annealing.best_score);
+    // }
+
+    // beam.first_step();
+
+    // for _ in 0..10 {
+    //     for i in 0..5 {
+    //         beam.one_step();
+    //         println!("beam {}: {}", i, beam.best_score);
+    //     }
+    //     annealing.best_ans = beam.best_ans.clone();
+    //     annealing.now_ans = beam.best_ans.clone();
+    //     annealing.best_score = beam.best_score;
+    //     let mut heap = BinaryHeap::new();
+    //     let mut map = HashMap::new();
+    //     for i in 0..10000 {
+    //         annealing.one_step();
+    //         println!("anneal {}: {}", i, annealing.now_score);
+    //         heap.push(OrdF32(annealing.now_ans.get_value()));
+    //         map.insert(
+    //             FloatKey(annealing.now_ans.get_value()),
+    //             annealing.now_ans.clone(),
+    //         );
+    //     }
+    //     let mut new_nodes = Vec::new();
+    //     for _ in 0..beam.beam_width {
+    //         if let Some(value) = heap.pop() {
+    //             new_nodes.push(map.get(&FloatKey(value.0)).unwrap().clone());
+    //         }
+    //     }
+    //     beam.best_ans = annealing.best_ans.clone();
+    //     beam.best_score = annealing.best_score;
+    //     beam.nodes = new_nodes.clone();
+    // }
+
+    let mut heap = BinaryHeap::new();
+    let mut map = HashMap::new();
+    for _ in 0..5 {
+        let mut beam = Beam {
+            beam_width: 200,
+            nodes: vec![protein.clone()],
+            best_score: 0,
+            best_ans: protein.clone(),
+        };
+        beam.first_step();
+        for i in 0..5 {
+            beam.one_step();
+            println!("beam {}: {}", i, beam.best_score);
+        }
+        for i in 0..beam.nodes.len() {
+            let value = beam.nodes[i].get_value();
+            if !map.contains_key(&FloatKey(value)) {
+                map.insert(FloatKey(value), beam.nodes[i].clone());
+                heap.push(OrdF32(value));
+            }
         }
     }
-    println!("best score: {}", beam.best_score);
+
+    let mut new_nodes = Vec::new();
+    for _ in 0..200 {
+        if let Some(value) = heap.pop() {
+            new_nodes.push(map.get(&FloatKey(value.0)).unwrap().clone());
+        }
+    }
+
+    //蟻コロニー最適化
+    // let mut aco = ACO {
+    //     pheromone: HashMap::new(),
+    //     best_score: 0,
+    //     protein: protein.clone(),
+    //     alpha: 1.0,
+    //     beta: 1.0,
+    //     evaporation: 0.9,
+    //     gamma: 1.0,
+    //     num_of_ants: 30,
+    // };
+    // let max_iter = 10000;
+    // aco.first_step(&mut protein);
+    // for i in 0..max_iter {
+    //     aco.one_step();
+    //     println!("{}: {}", i, aco.best_score);
+    // }
 }
