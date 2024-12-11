@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+piston_window = "0.132.0"
 plotters = "0.3.7"
 rand = "0.8.5"
 
