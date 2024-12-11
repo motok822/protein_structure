@@ -161,7 +161,7 @@ fn setup() -> Vec<Protein> {
 }
 fn main() {
     let mut sample_proteins = setup();
-    let mut protein = &mut sample_proteins[15];
+    let mut protein = &mut sample_proteins[11];
 
     //焼きなまし法
     let mut annealing = Annealing {
@@ -171,6 +171,7 @@ fn main() {
         now_score: 0,
         best_ans: protein.clone(),
         best_score: 0,
+        num_direct: 3,
     };
     //ビームサーチ
     let mut beam = Beam {
@@ -178,6 +179,7 @@ fn main() {
         nodes: vec![protein.clone()],
         best_score: 0,
         best_ans: protein.clone(),
+        num_direct: 3, // 2d
     };
     // annealing.first_step();
 
@@ -220,15 +222,16 @@ fn main() {
 
     let mut heap = BinaryHeap::new();
     let mut map = HashMap::new();
-    for _ in 0..5 {
+    for _ in 0..10 {
         let mut beam = Beam {
             beam_width: 200,
             nodes: vec![protein.clone()],
             best_score: 0,
             best_ans: protein.clone(),
+            num_direct: 3, // 2d
         };
         beam.first_step();
-        for i in 0..5 {
+        for i in 0..4 {
             beam.one_step();
             println!("beam {}: {}", i, beam.best_score);
         }

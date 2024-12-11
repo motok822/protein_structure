@@ -26,23 +26,39 @@ pub struct Protein {
     pub point: i32,
 }
 pub fn rotate_left((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
-    (y, -x, z)
+    if z == 0 {
+        return (y, -x, z);
+    } else {
+        return (x, -z, y);
+    }
 }
 pub fn rotate_right((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
-    (-y, x, z)
+    if z == 0 {
+        return (-y, x, z);
+    } else {
+        return (x, z, -y);
+    }
 }
 pub fn rotate_up((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
-    (z, y, -x)
+    if y == 0 {
+        return (-z, y, x);
+    } else {
+        return (-y, x, z);
+    }
 }
 pub fn rotate_down((x, y, z): (i32, i32, i32)) -> (i32, i32, i32) {
-    (-z, y, x)
+    if y == 0 {
+        return (z, y, -x);
+    } else {
+        return (y, -x, z);
+    }
 }
 
 impl Protein {
     pub fn get_value(&mut self) -> f32 {
         let mut score = self.calc_predict();
         let mut max_distance = self.calc_max_distance();
-        score as f32 - max_distance / 3.0
+        score as f32 - max_distance / 2.0
     }
 
     pub fn calc_predict(&mut self) -> i32 {

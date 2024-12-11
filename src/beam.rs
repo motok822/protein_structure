@@ -33,6 +33,7 @@ pub struct Beam {
     pub nodes: Vec<Protein>,
     pub best_score: i32,
     pub best_ans: Protein,
+    pub num_direct: i32,
 }
 
 impl Beam {
@@ -42,7 +43,7 @@ impl Beam {
             let mut direct = Vec::new();
             let mut protein = self.best_ans.clone();
             for _ in 0..protein.size - 2 {
-                let r = rng.gen_range(0..5);
+                let r = rng.gen_range(0..self.num_direct);
                 match r {
                     0 => direct.push(Direction::S),
                     1 => direct.push(Direction::L),
@@ -66,13 +67,13 @@ impl Beam {
         for c in 0..self.best_ans.direct.len() {
             let mut heap = BinaryHeap::new();
             let mut map = HashMap::new();
-            let directions = vec![
-                Direction::S,
-                Direction::L,
-                Direction::R,
-                Direction::U,
-                Direction::D,
-            ];
+            let mut directions = vec![Direction::S, Direction::L, Direction::R];
+
+            if self.num_direct == 5 {
+                directions.push(Direction::U);
+                directions.push(Direction::D);
+            }
+
             for i in 0..self.nodes.len() {
                 let mut node = self.nodes[i].clone();
                 for j in 0..directions.len() {
@@ -81,8 +82,7 @@ impl Beam {
                     new_node.direct[c] = direct.clone();
                     let score = new_node.calc_predict();
                     if score != -1 {
-                        let max_distance = new_node.calc_max_distance() as f32;
-                        let mut value = score as f32 - max_distance / 3.0;
+                        let mut value = new_node.get_value();
                         if !map.contains_key(&FloatKey(value)) {
                             map.insert(FloatKey(value), (new_node, score));
                             heap.push(OrdF32(value));

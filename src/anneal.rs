@@ -7,6 +7,7 @@ pub struct Annealing {
     pub now_score: i32,
     pub best_ans: Protein,
     pub best_score: i32,
+    pub num_direct: i32,
 }
 
 impl Heuristics for Annealing {
@@ -16,7 +17,7 @@ impl Heuristics for Annealing {
             let mut direct = Vec::new();
             let mut protein = self.now_ans.clone();
             for _ in 0..protein.size - 2 {
-                let r = rng.gen_range(0..3);
+                let r = rng.gen_range(0..self.num_direct);
                 match r {
                     0 => direct.push(Direction::S),
                     1 => direct.push(Direction::L),
@@ -43,12 +44,12 @@ impl Heuristics for Annealing {
         let mut score = self.now_score;
         let mut new_direct = direct.clone();
         let mut protein = self.now_ans.clone();
-        for _ in 0..5 {
+        for _ in 0..self.num_direct {
             let mut r = rng.gen_range(0..direct.len());
-            let mut new_r = rng.gen_range(0..5);
+            let mut new_r = rng.gen_range(0..self.num_direct);
             if direct[r] as i32 == new_r {
                 new_r += 1;
-                new_r %= 5;
+                new_r %= self.num_direct;
             }
             match new_r {
                 0 => new_direct[r] = Direction::S,
