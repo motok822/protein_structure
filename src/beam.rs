@@ -1,5 +1,7 @@
-use crate::lib::{rotate_down, rotate_left, rotate_right, rotate_up, Direction, Protein};
+use crate::lib::{rotate_down, rotate_left, rotate_right, rotate_up, Amino, Direction, Protein};
 use core::num;
+use plotters::prelude::DrawingArea;
+use plotters::prelude::*;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use rand::Rng;
@@ -208,7 +210,7 @@ impl Beam {
                         self.best_ans = node.clone();
                     }
                 }
-                new_nodes.push(node);
+                new_nodes.push(node.clone());
             }
         }
         self.nodes = new_nodes;
@@ -255,7 +257,8 @@ impl Beam {
                     let mut rng = rand::thread_rng();
                     let prob = rng.gen_range(0.0..1.0) as f32;
                     if prob < exp {
-                        new_nodes.push(node);
+                        x += 1;
+                        new_nodes.push(node.clone());
                     }
                 }
                 if new_nodes.len() >= self.beam_width as usize {
@@ -264,6 +267,160 @@ impl Beam {
                 x += 1;
             }
             self.nodes = new_nodes;
+        }
+    }
+    pub fn vis_one_step(&mut self, vis_step: u8, dim: u8) {
+        let area = BitMapBackend::gif(
+            "./animated.gif", // アニメーションファイルの名前。この名前で保存される
+            (1200, 800),      //  グラフのサイズ（幅x高さ)
+            1,                //  1フレームの時間。単位は [ms]
+        )
+        .unwrap()
+        .into_drawing_area();
+        for _ in 0..4 {
+            self.first_step();
+            println!("first step completed");
+
+            for i in 0..10 {
+                for c in 0..self.best_ans.direct.len() {
+                    let mut heap = BinaryHeap::new();
+                    let mut map = HashMap::new();
+                    let mut directions = vec![Direction::S, Direction::L, Direction::R];
+
+                    if self.num_direct == 5 {
+                        directions.push(Direction::U);
+                        directions.push(Direction::D);
+                    }
+
+                    for i in 0..self.nodes.len() {
+                        let mut node = self.nodes[i].clone();
+                        for j in 0..directions.len() {
+                            let direct = directions[j];
+                            let mut new_node = node.clone();
+                            new_node.direct[c] = direct;
+                            let score = new_node.calc_predict();
+                            if score != -1 {
+                                let mut value = new_node.get_value();
+                                if !map.contains_key(&value) {
+                                    map.insert(value, (new_node, score));
+                                    heap.push(value);
+                                }
+                            }
+                        }
+                    }
+                    let mut new_nodes: Vec<Protein> = Vec::new();
+                    let mut x = 0;
+                    let mut count = 0;
+                    while heap.len() > 0 {
+                        if let Some(value) = heap.pop() {
+                            let (node, score) = map.remove(&value).unwrap();
+                            if self.best_score < score {
+                                self.best_score = score;
+                                self.best_ans = node.clone();
+                            }
+                            let exp = (-8.0 * (x * x) as f32
+                                / ((self.beam_width * self.beam_width) as f32))
+                                .exp();
+                            let mut rng = rand::thread_rng();
+                            let prob = rng.gen_range(0.0..1.0) as f32;
+                            if prob < exp {
+                                x += 1;
+                                new_nodes.push(node.clone());
+                                count += 1;
+                                if count == vis_step {
+                                    count = 0;
+                                    //visualize の処理
+                                    let mut data = Vec::new();
+                                    data.push((0, 0, 0, node.aminos[0].amino));
+                                    if dim == 2 {
+                                        data.push((5, 0, 0, node.aminos[1].amino));
+                                    } else {
+                                        data.push((10, 0, 0, node.aminos[1].amino));
+                                    }
+                                    for i in 0..node.direct.len() {
+                                        let mut prev_direction = (
+                                            data[i + 1].0 - data[i].0,
+                                            data[i + 1].1 - data[i].1,
+                                            data[i + 1].2 - data[i].2,
+                                        );
+                                        let (x, y, z, a) = match node.direct[i] {
+                                            Direction::S => (
+                                                data[i + 1].0 + prev_direction.0,
+                                                data[i + 1].1 + prev_direction.1,
+                                                data[i + 1].2 + prev_direction.2,
+                                                node.aminos[i + 2].amino,
+                                            ),
+                                            Direction::L => (
+                                                data[i + 1].0 + rotate_left(prev_direction).0,
+                                                data[i + 1].1 + rotate_left(prev_direction).1,
+                                                data[i + 1].2 + rotate_left(prev_direction).2,
+                                                node.aminos[i + 2].amino,
+                                            ),
+                                            Direction::R => (
+                                                data[i + 1].0 + rotate_right(prev_direction).0,
+                                                data[i + 1].1 + rotate_right(prev_direction).1,
+                                                data[i + 1].2 + rotate_right(prev_direction).2,
+                                                node.aminos[i + 2].amino,
+                                            ),
+                                            Direction::U => (
+                                                data[i + 1].0 + rotate_up(prev_direction).0,
+                                                data[i + 1].1 + rotate_up(prev_direction).1,
+                                                data[i + 1].2 + rotate_up(prev_direction).2,
+                                                node.aminos[i + 2].amino,
+                                            ),
+                                            Direction::D => (
+                                                data[i + 1].0 + rotate_down(prev_direction).0,
+                                                data[i + 1].1 + rotate_down(prev_direction).1,
+                                                data[i + 1].2 + rotate_down(prev_direction).2,
+                                                node.aminos[i + 2].amino,
+                                            ),
+                                        };
+                                        data.push((x, y, z, a));
+                                    }
+
+                                    area.fill(&WHITE).unwrap();
+
+                                    let mut chart = ChartBuilder::on(&area)
+                                        .margin(20)
+                                        .caption("protein structure", ("sans-serif", 40))
+                                        .build_cartesian_3d(-100..100, -100..100, -100..100)
+                                        .unwrap();
+
+                                    chart.configure_axes().draw().unwrap();
+
+                                    chart
+                                        .draw_series(data.iter().map(|&(x, y, z, a)| {
+                                            if (a == Amino::H) {
+                                                TriangleMarker::new((x, y, z), 5, &RED)
+                                            } else {
+                                                TriangleMarker::new((x, y, z), 5, &BLUE)
+                                            }
+                                        }))
+                                        .unwrap();
+
+                                    chart
+                                        .draw_series(LineSeries::new(
+                                            data.iter().map(|&(x, y, z, _)| (x, y, z)),
+                                            &BLACK.mix(0.3),
+                                        ))
+                                        .unwrap();
+
+                                    // グラフを更新する
+                                    area.present().unwrap();
+                                }
+                            }
+                        }
+                        if new_nodes.len() >= self.beam_width as usize {
+                            break;
+                        }
+                        x += 1;
+                    }
+                    self.nodes = new_nodes;
+                }
+
+                println!("one step completed");
+                println!("beam {}: {}", i, self.best_score);
+            }
         }
     }
 }

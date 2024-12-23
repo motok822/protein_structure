@@ -3,19 +3,16 @@ use rand::Rng;
 use std::collections::HashMap;
 // mod aco;
 mod animation;
-mod anneal;
 mod beam;
 mod lib;
 // use aco::ACO;
-use anneal::Annealing;
+use animation::animation;
 use beam::next_permutation;
 use beam::Beam;
+use clap::Parser;
 use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Protein};
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 use std::hash::{Hash, Hasher};
-extern crate piston_window;
-use animation::animation;
 
 #[derive(Debug, PartialEq, PartialOrd)]
 struct OrdF32(f32);
@@ -28,7 +25,6 @@ impl Ord for OrdF32 {
         self.partial_cmp(other).unwrap_or(Ordering::Equal)
     }
 }
-
 #[derive(Debug, PartialEq, PartialOrd)]
 struct FloatKey(f32);
 
@@ -138,7 +134,6 @@ fn setup() -> Vec<Protein> {
         sample_proteins[i].aminos[1].pos = (1, 0, 0);
     }
     sample_proteins[0].direct = vec![Direction::L, Direction::L];
-    println!("{}", sample_proteins[0].calc_predict()); //test
     sample_proteins[1].direct = vec![
         Direction::L,
         Direction::S,
@@ -159,61 +154,69 @@ fn setup() -> Vec<Protein> {
         Direction::S,
         Direction::L,
     ];
-    println!("{}", sample_proteins[1].calc_predict()); // test
     sample_proteins
 }
-fn main() {
-    let mut sample_proteins = setup();
-    let mut protein = &mut sample_proteins[11];
 
-    //焼きなまし法
-    for _ in 0..4 {
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    vis: bool,
+
+    #[arg(short, long, default_value_t = 5)]
+    step: u8,
+
+    #[arg(short, long, default_value_t = 2)]
+    dim: u8,
+
+    #[arg(short, long, default_value_t = 10)]
+    id: u8,
+}
+
+fn main() {
+    let args = Args::parse();
+    print!("{:?}", args);
+    let mut sample_proteins = setup();
+    let mut protein = &mut sample_proteins[args.id as usize];
+
+    if args.vis {
         let mut beam = Beam {
             beam_width: 200,
             nodes: vec![protein.clone()],
             best_score: 0,
             best_ans: protein.clone(),
-            num_direct: 3,
+            num_direct: if args.dim == 2 { 3 } else { 5 },
         };
+        beam.vis_one_step(args.step, args.dim);
+    } else {
+        let mut best_ans = protein.clone();
+        let mut best_score = 0;
+        for _ in 0..4 {
+            let mut beam = Beam {
+                beam_width: 200,
+                nodes: vec![protein.clone()],
+                best_score: 0,
+                best_ans: protein.clone(),
+                num_direct: if args.dim == 2 { 3 } else { 5 },
+            };
 
-        beam.first_step();
-        println!("first step completed");
+            beam.first_step();
+            println!("first step completed");
 
-        for i in 0..10 {
-            beam.one_step();
-            println!("one step completed");
-            println!("beam {}: {}", i, beam.best_score);
-            beam.local_one_step();
-            println!("local step completed");
-            println!("beam {}: {}", i, beam.best_score);
-            let (above_cube, area) = beam.best_ans.get_above_cube();
-            println!("above cube: {}, area: {}", above_cube, area);
+            for i in 0..10 {
+                beam.one_step();
+                println!("one step completed");
+                println!("beam {}: {}", i, beam.best_score);
+                beam.local_one_step();
+                println!("local step completed");
+                println!("beam {}: {}", i, beam.best_score);
+            }
+            if beam.best_score > best_score {
+                best_ans = beam.best_ans.clone();
+                best_score = beam.best_score;
+            }
+            animation(&mut beam.best_ans, args.dim);
         }
-        animation(&mut beam.best_ans);
+        animation(&mut best_ans, args.dim);
     }
-
-    // let mut new_nodes = Vec::new();
-    // for _ in 0..200 {
-    //     if let Some(value) = heap.pop() {
-    //         new_nodes.push(map.get(&FloatKey(value.0)).unwrap().clone());
-    //     }
-    // }
-
-    //蟻コロニー最適化
-    // let mut aco = ACO {
-    //     pheromone: HashMap::new(),
-    //     best_score: 0,
-    //     protein: protein.clone(),
-    //     alpha: 1.0,
-    //     beta: 1.0,
-    //     evaporation: 0.9,
-    //     gamma: 1.0,
-    //     num_of_ants: 30,
-    // };
-    // let max_iter = 10000;
-    // aco.first_step(&mut protein);
-    // for i in 0..max_iter {
-    //     aco.one_step();
-    //     println!("{}: {}", i, aco.best_score);
-    // }
 }
