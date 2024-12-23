@@ -1,4 +1,4 @@
-use crate::lib::{Direction, Heuristics, Protein};
+use crate::lib::{Direction, Protein};
 use rand::Rng;
 pub struct Annealing {
     pub temperature: f64,
@@ -10,8 +10,8 @@ pub struct Annealing {
     pub num_direct: i32,
 }
 
-impl Heuristics for Annealing {
-    fn first_step(&mut self) {
+impl Annealing {
+    pub fn first_step(&mut self) {
         while true {
             let mut rng = rand::thread_rng();
             let mut direct = Vec::new();
@@ -38,7 +38,7 @@ impl Heuristics for Annealing {
             }
         }
     }
-    fn one_step(&mut self) {
+    pub fn one_step(&mut self) {
         let mut rng = rand::thread_rng();
         let mut direct = self.now_ans.direct.clone();
         let mut score = self.now_score;

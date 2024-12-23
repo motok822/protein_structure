@@ -1,7 +1,9 @@
-use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Heuristics, Protein};
+use crate::lib::{
+    rotate_down, rotate_left, rotate_right, rotate_up, Amino, AminoAcid, Direction, Protein,
+};
 use plotters::prelude::*;
 
-fn animation(protein: &mut Protein) {
+pub fn animation(protein: &mut Protein) {
     let area = BitMapBackend::gif(
         "./animated.gif", // アニメーションファイルの名前。この名前で保存される
         (1200, 800),      //  グラフのサイズ（幅x高さ)
@@ -38,24 +40,32 @@ fn animation(protein: &mut Protein) {
                 data[i + 1].2 + rotate_right(prev_direction).2,
                 protein.aminos[i + 2].amino,
             ),
+            Direction::U => (
+                data[i + 1].0 + rotate_up(prev_direction).0,
+                data[i + 1].1 + rotate_up(prev_direction).1,
+                data[i + 1].2 + rotate_up(prev_direction).2,
+                protein.aminos[i + 2].amino,
+            ),
+            Direction::D => (
+                data[i + 1].0 + rotate_down(prev_direction).0,
+                data[i + 1].1 + rotate_down(prev_direction).1,
+                data[i + 1].2 + rotate_down(prev_direction).2,
+                protein.aminos[i + 2].amino,
+            ),
         };
         data.push((x, y, z, a));
     }
 
-    for _ in 0..=20 {
+    for _ in 0..1 {
         area.fill(&WHITE).unwrap();
 
         let mut chart = ChartBuilder::on(&area)
             .margin(20)
             .caption("protein structure", ("sans-serif", 40))
-            .build_cartesian_3d(-20..20, -20..20, -20..20)
+            .build_cartesian_3d(-50..50, -50..50, -50..50)
             .unwrap();
 
         chart.configure_axes().draw().unwrap();
-
-        for i in 0..data.len() {
-            data[i].0 += 1;
-        }
 
         chart
             .draw_series(data.iter().map(|&(x, y, z, a)| {

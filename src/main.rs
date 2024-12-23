@@ -2,18 +2,20 @@ use plotters::prelude::*;
 use rand::Rng;
 use std::collections::HashMap;
 // mod aco;
+mod animation;
 mod anneal;
 mod beam;
 mod lib;
 // use aco::ACO;
 use anneal::Annealing;
+use beam::next_permutation;
 use beam::Beam;
-use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Heuristics, Protein};
+use lib::{rotate_left, rotate_right, Amino, AminoAcid, Direction, Protein};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::hash::{Hash, Hasher};
 extern crate piston_window;
-use piston_window::*;
+use animation::animation;
 
 #[derive(Debug, PartialEq, PartialOrd)]
 struct OrdF32(f32);
@@ -129,7 +131,6 @@ fn setup() -> Vec<Protein> {
             aminos: amino_acids,
             direct: Vec::new(),
             predict: 0,
-            point: SAMPLE_PROTEIN_POINTS[i],
         });
     }
     for i in 0..sample_proteins.len() {
@@ -166,85 +167,30 @@ fn main() {
     let mut protein = &mut sample_proteins[11];
 
     //焼きなまし法
-    // let mut annealing = Annealing {
-    //     temperature: 0.9,
-    //     max_iter: 1000000,
-    //     now_ans: protein.clone(),
-    //     now_score: 0,
-    //     best_ans: protein.clone(),
-    //     best_score: 0,
-    //     num_direct: 3,
-    // };
-    // //ビームサーチ
-    // let mut beam = Beam {
-    //     beam_width: 200,
-    //     nodes: vec![protein.clone()],
-    //     best_score: 0,
-    //     best_ans: protein.clone(),
-    //     num_direct: 3, // 2d
-    // };
-    // annealing.first_step();
+    for _ in 0..4 {
+        let mut beam = Beam {
+            beam_width: 200,
+            nodes: vec![protein.clone()],
+            best_score: 0,
+            best_ans: protein.clone(),
+            num_direct: 3,
+        };
 
-    // for _ in 0..annealing.max_iter {
-    //     annealing.one_step();
-    //     println!("{}", annealing.best_score);
-    // }
+        beam.first_step();
+        println!("first step completed");
 
-    // beam.first_step();
-
-    // for _ in 0..10 {
-    //     for i in 0..5 {
-    //         beam.one_step();
-    //         println!("beam {}: {}", i, beam.best_score);
-    //     }
-    //     annealing.best_ans = beam.best_ans.clone();
-    //     annealing.now_ans = beam.best_ans.clone();
-    //     annealing.best_score = beam.best_score;
-    //     let mut heap = BinaryHeap::new();
-    //     let mut map = HashMap::new();
-    //     for i in 0..10000 {
-    //         annealing.one_step();
-    //         println!("anneal {}: {}", i, annealing.now_score);
-    //         heap.push(OrdF32(annealing.now_ans.get_value()));
-    //         map.insert(
-    //             FloatKey(annealing.now_ans.get_value()),
-    //             annealing.now_ans.clone(),
-    //         );
-    //     }
-    //     let mut new_nodes = Vec::new();
-    //     for _ in 0..beam.beam_width {
-    //         if let Some(value) = heap.pop() {
-    //             new_nodes.push(map.get(&FloatKey(value.0)).unwrap().clone());
-    //         }
-    //     }
-    //     beam.best_ans = annealing.best_ans.clone();
-    //     beam.best_score = annealing.best_score;
-    //     beam.nodes = new_nodes.clone();
-    // }
-
-    // let mut heap = BinaryHeap::new();
-    // let mut map = HashMap::new();
-    // for _ in 0..10 {
-    //     let mut beam = Beam {
-    //         beam_width: 200,
-    //         nodes: vec![protein.clone()],
-    //         best_score: 0,
-    //         best_ans: protein.clone(),
-    //         num_direct: 3, // 2d
-    //     };
-    //     beam.first_step();
-    //     for i in 0..4 {
-    //         beam.one_step();
-    //         println!("beam {}: {}", i, beam.best_score);
-    //     }
-    //     for i in 0..beam.nodes.len() {
-    //         let value = beam.nodes[i].get_value();
-    //         if !map.contains_key(&FloatKey(value)) {
-    //             map.insert(FloatKey(value), beam.nodes[i].clone());
-    //             heap.push(OrdF32(value));
-    //         }
-    //     }
-    // }
+        for i in 0..10 {
+            beam.one_step();
+            println!("one step completed");
+            println!("beam {}: {}", i, beam.best_score);
+            beam.local_one_step();
+            println!("local step completed");
+            println!("beam {}: {}", i, beam.best_score);
+            let (above_cube, area) = beam.best_ans.get_above_cube();
+            println!("above cube: {}, area: {}", above_cube, area);
+        }
+        animation(&mut beam.best_ans);
+    }
 
     // let mut new_nodes = Vec::new();
     // for _ in 0..200 {
@@ -270,39 +216,4 @@ fn main() {
     //     aco.one_step();
     //     println!("{}: {}", i, aco.best_score);
     // }
-    let WINDOW_TITLE = "Protein Folding".to_string();
-    let WINDOW_SIZE = [800, 800];
-    let mut window: PistonWindow = WindowSettings::new(WINDOW_TITLE, WINDOW_SIZE)
-        .exit_on_esc(true) //Escキーを押したら終了する
-        .vsync(true) //垂直同期を有効にする
-        .resizable(false) //ウィンドウのリサイズをさせない
-        .samples(4) //アンチエイリアスのサンプル数
-        .build()
-        .unwrap_or_else(|e| panic!("Failed to build PistonWindow: {}", e));
-    window.events.set_max_fps(60); //描画の最大FPS
-    window.events.set_ups(60); //1秒間に何回アップデートするか
-    let points = vec![
-        (0.0, 0.0, 0.0), // 原点
-        (100.0, 50.0, 50.0),
-        (-50.0, -50.0, 100.0),
-        (200.0, 100.0, -50.0),
-    ];
-    while let Some(e) = window.next() {
-        window.draw_3d(&e, |window| {
-            let args = e.render_args().unwrap();
-
-            window
-                .encoder
-                .clear(&window.output_color, [0.3, 0.3, 0.3, 1.0]);
-            window.encoder.clear_depth(&window.output_stencil, 1.0);
-
-            data.u_model_view_proj = model_view_projection(
-                model,
-                first_person.camera(args.ext_dt).orthogonal(),
-                projection,
-            );
-            window.encoder.draw(slice, pipeline, user_data);
-            window.encoder.draw(&slice, &pso, &data);
-        });
-    }
 }
